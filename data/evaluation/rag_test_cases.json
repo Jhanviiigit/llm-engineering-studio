@@ -1,0 +1,22 @@
+[
+    {
+        "question": "What is RAG?",
+        "reference_answer": "RAG stands for Retrieval-Augmented Generation. It combines information retrieval with a large language model by retrieving relevant information and providing it as context to the model."
+    },
+    {
+        "question": "How does RAG work?",
+        "reference_answer": "A RAG system retrieves relevant information from a knowledge base and provides that information to a language model as context for generating a response."
+    },
+    {
+        "question": "Why can RAG reduce unsupported responses?",
+        "reference_answer": "RAG can reduce unsupported responses because the language model can use retrieved documents as evidence when generating an answer."
+    },
+    {
+        "question": "What is the role of a knowledge base in RAG?",
+        "reference_answer": "The knowledge base stores information that the RAG system can retrieve as relevant context for answering questions."
+    },
+    {
+        "question": "What does the language model receive in a RAG system?",
+        "reference_answer": "The language model receives relevant information retrieved from the knowledge base as context along with the question."
+    }
+]

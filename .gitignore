@@ -9,6 +9,7 @@ __pycache__/
 .env
 
 # Generated outputs
+output/
 outputs/
 
 # VS Code settings
