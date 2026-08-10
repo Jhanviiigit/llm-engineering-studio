@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from parsers.response_parser import parse_response
 
-
 # Load environment variables
 load_dotenv()
 
@@ -34,25 +33,38 @@ class LLMClient:
         model: str = "openrouter/free",
         temperature: float = 0.7,
         max_tokens: int = 500,
+        response_format: dict | None = None,
     ) -> dict:
         """
         Send a prompt to the LLM and return the response
         along with useful metadata.
+
+        response_format can be used to request structured output,
+        such as a JSON object.
         """
 
         start = time.perf_counter()
 
         try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
+
+            request = {
+                "model": model,
+                "messages": [
                     {
                         "role": "user",
                         "content": prompt,
                     }
                 ],
-                temperature=temperature,
-                max_tokens=max_tokens,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+
+            # Add structured output configuration only when requested
+            if response_format is not None:
+                request["response_format"] = response_format
+
+            response = self.client.chat.completions.create(
+                **request
             )
 
             end = time.perf_counter()
@@ -67,6 +79,7 @@ class LLMClient:
             return parsed
 
         except Exception as e:
+
             return {
                 "response": f"Error: {e}",
                 "latency": 0,

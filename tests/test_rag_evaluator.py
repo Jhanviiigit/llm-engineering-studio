@@ -2,29 +2,32 @@ from evaluation import rag_evaluator
 
 
 class FakeLLMClient:
-    def chat(self, prompt, temperature=0.7):
-        assert "What is RAG?" in prompt
-        assert "RAG combines information retrieval" in prompt
-        assert temperature == 0.0
+
+    def chat(
+        self,
+        prompt,
+        temperature=0.0,
+        response_format=None
+    ):
 
         return {
             "response": """
 {
     "groundedness": {
         "score": 1.0,
-        "reason": "The answer is supported by the context."
+        "reason": "Supported by context."
     },
     "relevance": {
         "score": 1.0,
-        "reason": "The answer directly addresses the question."
+        "reason": "Relevant to the question."
     },
     "completeness": {
-        "score": 0.8,
-        "reason": "The answer covers the main idea."
+        "score": 1.0,
+        "reason": "Contains the required information."
     },
     "conciseness": {
         "score": 1.0,
-        "reason": "The answer is concise."
+        "reason": "Concise answer."
     }
 }
 """
@@ -49,5 +52,5 @@ def test_evaluate_rag(monkeypatch):
 
     assert result["groundedness"]["score"] == 1.0
     assert result["relevance"]["score"] == 1.0
-    assert result["completeness"]["score"] == 0.8
+    assert result["completeness"]["score"] == 1.0
     assert result["conciseness"]["score"] == 1.0

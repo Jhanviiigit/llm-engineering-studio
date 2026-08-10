@@ -34,10 +34,10 @@ Does the generated answer correctly convey the information in the reference answ
 
     if reference_answer:
         correctness_json = """,
-    "correctness": {
-        "score": 0.0,
-        "reason": ""
-    }"""
+"correctness": {
+    "score": 0.0,
+    "reason": ""
+}"""
 
     prompt = f"""
 Evaluate the quality of the following RAG response.
@@ -56,39 +56,20 @@ Generated Answer:
 Evaluate these dimensions:
 
 1. Groundedness:
-Is the answer supported by the retrieved context?
+   Is the answer supported by the retrieved context?
 
 2. Relevance:
-Does the answer directly address the question?
+   Does the answer directly address the question?
 
 3. Completeness:
-Does the answer include the important information needed to answer the question?
+   Does the answer include the important information needed to answer the question?
 
 4. Conciseness:
-Is the answer clear and free of unnecessary information?
+   Is the answer clear and free of unnecessary information?
 
 {correctness_instruction}
 
-Return ONLY valid JSON in this exact format:
-
-{{
-    "groundedness": {{
-        "score": 0.0,
-        "reason": ""
-    }},
-    "relevance": {{
-        "score": 0.0,
-        "reason": ""
-    }},
-    "completeness": {{
-        "score": 0.0,
-        "reason": ""
-    }},
-    "conciseness": {{
-        "score": 0.0,
-        "reason": ""
-    }}{correctness_json}
-}}
+Return a JSON object containing the evaluation.
 
 Scores must be between 0.0 and 1.0.
 """
@@ -112,12 +93,16 @@ def evaluate_rag(
 
     result = client.chat(
         prompt,
-        temperature=0.0
+        temperature=0.0,
+        response_format={
+            "type": "json_object"
+        }
     )
 
     try:
 
         response_text = result["response"].strip()
+
         if response_text.startswith("```"):
             response_text = response_text.replace("```json", "")
             response_text = response_text.replace("```", "")

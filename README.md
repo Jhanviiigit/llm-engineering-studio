@@ -1,9 +1,8 @@
-
 # LLM Engineering Studio
 
-A modular Python platform for experimenting with Large Language Models (LLMs), prompt engineering, Retrieval-Augmented Generation (RAG), benchmarking, and evaluation.
+A modular Python platform for experimenting with Large Language Models (LLMs), prompt engineering, Retrieval-Augmented Generation (RAG), structured outputs, benchmarking, and evaluation.
 
-The project is designed as a learning and experimentation environment where LLM components can be developed, tested, evaluated, and compared systematically.
+The project is designed as an experimentation environment where LLM components can be developed, tested, evaluated, and compared systematically.
 
 ## Current Features
 
@@ -23,8 +22,9 @@ The project is designed as a learning and experimentation environment where LLM 
 - Sentence-transformer embeddings
 - Vector storage
 - Similarity-based retrieval
+- Configurable `top_k` retrieval
 - Context-aware answer generation
-- Retrieved-context display
+- Retrieved-context inspection
 
 ### LLM Evaluation
 
@@ -43,8 +43,61 @@ The project includes:
 - Automatic metric aggregation
 - Retrieval-depth experiments
 - Mock-based unit tests
+- Structured evaluation outputs
+
+### Structured Outputs
+
+The evaluation pipeline requests structured JSON responses from the LLM using the OpenAI-compatible `response_format` interface.
+
+This allows evaluation results to be parsed programmatically into individual metrics rather than relying only on free-form model output.
+
+### Web Interface
+
+A Streamlit-based web interface provides an interactive way to:
+
+- Ask questions about the document collection
+- Control the RAG `top_k` retrieval parameter
+- View generated answers
+- Inspect retrieved context
+- View evaluation metrics
+- View latency and token usage
 
 ## Architecture
+
+```text
+                         Streamlit UI
+                              |
+                              v
+                         RAG Service
+                              |
+                    +---------+---------+
+                    |                   |
+                    v                   v
+                Retriever             LLM
+                    |
+                    v
+               Vector Store
+                    |
+                    v
+                Embeddings
+                    |
+                    v
+                Documents
+
+                         |
+                         v
+                    RAG Response
+                         |
+                         v
+                  LLM Evaluation
+                         |
+        +----------------+----------------+
+        |        |        |        |      |
+        v        v        v        v      v
+   Grounded  Relevance Completeness Conciseness Correctness
+````
+
+## RAG Pipeline
 
 ```text
 Documents
@@ -53,7 +106,7 @@ Documents
 Document Loader
     |
     v
-Chunking
+Text Chunking
     |
     v
 Embeddings
@@ -71,17 +124,11 @@ RAG Service
 LLM
     |
     v
-Response Parser
+Generated Answer
     |
     v
 Evaluation
-    |
-    +--> Groundedness
-    +--> Relevance
-    +--> Completeness
-    +--> Conciseness
-    +--> Correctness
-````
+```
 
 ## RAG Retrieval Experiment
 
@@ -113,8 +160,18 @@ llm-engineering-studio/
 │   ├── llm/
 │   │   └── client.py
 │   │
+│   ├── parsers/
+│   │   └── response_parser.py
+│   │
+│   ├── prompts/
+│   │   ├── paraphrase.py
+│   │   ├── rag.py
+│   │   ├── story.py
+│   │   └── translation.py
+│   │
 │   ├── rag/
 │   │   ├── chunker.py
+│   │   ├── document_loader.py
 │   │   ├── embeddings.py
 │   │   ├── indexer.py
 │   │   ├── retriever.py
@@ -123,7 +180,11 @@ llm-engineering-studio/
 │   ├── services/
 │   │   ├── paraphrase_service.py
 │   │   ├── rag_service.py
+│   │   ├── temperature_services.py
 │   │   └── translation_service.py
+│   │
+│   ├── utils/
+│   │   └── file_manager.py
 │   │
 │   └── main.py
 │
@@ -135,11 +196,23 @@ llm-engineering-studio/
 │       └── rag_test_cases.json
 │
 ├── tests/
+│   ├── test_batch_evaluator.py
+│   ├── test_case_loader.py
+│   ├── test_chunker.py
+│   ├── test_document_loader.py
+│   ├── test_embeddings.py
+│   ├── test_indexer.py
+│   ├── test_rag_evaluator.py
+│   ├── test_rag_prompt.py
+│   ├── test_rag_service.py
+│   ├── test_retriever.py
+│   └── test_vector_store.py
 │
 ├── output/
-│
 ├── run_evaluation.py
+├── streamlit_app.py
 ├── pytest.ini
+├── requirements.txt
 └── README.md
 ```
 
@@ -177,7 +250,7 @@ Activate the virtual environment and run:
 python app/main.py
 ```
 
-The application currently provides:
+The terminal application currently provides:
 
 ```text
 1. Translate
@@ -186,6 +259,23 @@ The application currently provides:
 4. RAG Question Answering
 5. Exit
 ```
+
+## Running the Streamlit Interface
+
+Run:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The browser interface allows users to:
+
+* Submit RAG questions
+* Adjust `top_k`
+* View generated answers
+* Inspect retrieved context
+* View evaluation metrics
+* View latency and token usage
 
 ## Running Tests
 
@@ -212,11 +302,26 @@ data/evaluation/rag_test_cases.json
 
 * Python
 * Pytest
-* Sentence Transformers
 * NumPy
+* PyTorch
+* Sentence Transformers
+* Streamlit
 * OpenAI-compatible APIs
 * OpenRouter
+* Structured JSON Outputs
 * Git
+* GitHub
+
+## Engineering Practices
+
+* Modular separation of LLM, RAG, evaluation, service, and prompt components
+* Unit testing with pytest
+* Mocking of LLM clients for deterministic tests
+* Controlled parameter experiments
+* Structured evaluation outputs
+* Latency and token tracking
+* Environment variables for API credentials
+* `.gitignore` protection for secrets and generated files
 
 ## Future Work
 
@@ -224,10 +329,9 @@ Planned extensions include:
 
 * Summarization
 * Sentiment Analysis
-* Structured output experiments
 * Additional parameter benchmarking
 * Larger evaluation datasets
 * FastAPI backend
-* Streamlit interface
 * LangChain workflows
 * Additional vector database integrations
+* More robust evaluation and monitoring
