@@ -225,7 +225,7 @@ The project uses `pytest` for automated testing.
 Current test suite:
 
 ```text
-20 passed
+35 passed
 ```
 
 Tests cover:
@@ -272,9 +272,25 @@ The terminal application currently provides:
 5. Exit
 ```
 
-## Running the Streamlit Interface
+## Running the API and Web Interface
 
-Run:
+The web interface is a thin client that calls the FastAPI service, so start both.
+
+**Terminal 1: API**
+
+```bash
+uvicorn api.main:app --app-dir app --reload
+```
+
+Interactive API docs: http://localhost:8000/docs
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| `GET` | `/health` | Liveness check and number of indexed chunks |
+| `POST` | `/ask` | Answer a question (`question`, `top_k`, optional `evaluate`) |
+| `POST` | `/documents` | Upload a `.txt` document and index it |
+
+**Terminal 2: Streamlit UI**
 
 ```bash
 streamlit run streamlit_app.py
@@ -284,10 +300,12 @@ The browser interface allows users to:
 
 * Submit RAG questions
 * Adjust `top_k`
-* View generated answers
+* Turn LLM-judge evaluation on or off
+* Upload `.txt` documents
 * Inspect retrieved context
-* View evaluation metrics
-* View latency and token usage
+* View evaluation metrics, latency, token usage and the model used
+
+Set `API_URL` if the API is not running on `http://localhost:8000`.
 
 ## Running Tests
 
@@ -317,6 +335,7 @@ data/evaluation/rag_test_cases.json
 * NumPy
 * PyTorch
 * Sentence Transformers
+* FastAPI
 * Streamlit
 * OpenAI-compatible APIs
 * OpenRouter
@@ -343,7 +362,6 @@ Planned extensions include:
 * Sentiment Analysis
 * Additional parameter benchmarking
 * Larger evaluation datasets
-* FastAPI backend
 * LangChain workflows
 * Additional vector database integrations
 * More robust evaluation and monitoring

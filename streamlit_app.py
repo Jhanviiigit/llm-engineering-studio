@@ -1,18 +1,20 @@
-import sys
-from pathlib import Path
+import os
 
+import httpx
 import streamlit as st
+from dotenv import load_dotenv
 
 
-# Make app/ importable
-APP_DIR = Path(__file__).parent / "app"
+# The UI is a thin client: all retrieval, generation and evaluation
+# happens in the API service (app/api/main.py). Start the API first:
+#
+#     uvicorn api.main:app --app-dir app
+load_dotenv()
 
-if str(APP_DIR) not in sys.path:
-    sys.path.insert(0, str(APP_DIR))
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
-
-from bootstrap import create_rag_service
-from llm.client import LLMError
+# Answering with evaluation makes two LLM calls, which can be slow
+REQUEST_TIMEOUT_SECONDS = 120
 
 
 st.set_page_config(
@@ -22,10 +24,23 @@ st.set_page_config(
 )
 
 
-@st.cache_resource
-def get_rag_service():
+def api_error_message(error: Exception) -> str:
 
-    return create_rag_service()
+    if isinstance(error, httpx.ConnectError):
+        return (
+            f"Cannot reach the API at {API_URL}. "
+            "Start it with: uvicorn api.main:app --app-dir app"
+        )
+
+    if isinstance(error, httpx.HTTPStatusError):
+        try:
+            detail = error.response.json().get("detail")
+        except ValueError:
+            detail = error.response.text
+
+        return f"API error {error.response.status_code}: {detail}"
+
+    return f"Request failed: {error}"
 
 
 st.title("LLM Engineering Studio")
@@ -48,6 +63,43 @@ st.sidebar.write(
     f"Retrieving the top {top_k} relevant chunks."
 )
 
+evaluate = st.sidebar.checkbox(
+    "Evaluate answer (LLM judge)",
+    value=True,
+    help="Makes a second LLM call to score the answer."
+)
+
+st.sidebar.header("Documents")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Add a .txt document",
+    type=["txt"]
+)
+
+if uploaded_file is not None and st.sidebar.button("Upload"):
+
+    try:
+
+        response = httpx.post(
+            f"{API_URL}/documents",
+            files={
+                "file": (uploaded_file.name, uploaded_file.getvalue())
+            },
+            timeout=REQUEST_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
+
+        body = response.json()
+
+        st.sidebar.success(
+            f"Added {body['chunks_added']} chunks "
+            f"({body['total_chunks']} total)."
+        )
+
+    except httpx.HTTPError as e:
+
+        st.sidebar.error(api_error_message(e))
+
 question = st.text_input(
     "Ask a question about the documents"
 )
@@ -57,53 +109,54 @@ if st.button("Ask"):
     if not question.strip():
 
         st.warning("Please enter a question.")
+        st.stop()
 
-    else:
+    with st.spinner("Generating answer..."):
 
-        with st.spinner("Generating answer..."):
+        try:
 
-            rag_service = get_rag_service()
+            response = httpx.post(
+                f"{API_URL}/ask",
+                json={
+                    "question": question,
+                    "top_k": top_k,
+                    "evaluate": evaluate
+                },
+                timeout=REQUEST_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
 
-            try:
+        except httpx.HTTPError as e:
 
-                result = rag_service.answer_question(
-                    question,
-                    top_k=top_k
-                )
+            st.error(api_error_message(e))
+            st.stop()
 
-            except LLMError as e:
+    result = response.json()
 
-                st.error(f"The language model request failed: {e}")
-                st.stop()
+    st.subheader("Answer")
 
-        st.subheader("Answer")
+    st.write(result["answer"])
 
-        st.write(result["response"])
+    st.subheader("Retrieved Context")
 
-        st.subheader("Retrieved Context")
+    for i, context in enumerate(
+        result["retrieved_context"],
+        start=1
+    ):
 
-        for i, context in enumerate(
-            result["retrieved_context"],
-            start=1
-        ):
+        with st.expander(f"Chunk {i}"):
 
-            with st.expander(f"Chunk {i}"):
+            st.write(context)
 
-                st.write(context)
+    if evaluate:
 
         st.subheader("Evaluation")
 
-        evaluation = result.get("evaluation", {})
+        if result["evaluation_error"]:
 
-        if "error" in evaluation:
+            st.warning(result["evaluation_error"])
 
-            st.warning(evaluation["error"])
-
-        metrics = {
-            metric: details
-            for metric, details in evaluation.items()
-            if isinstance(details, dict)
-        }
+        metrics = result["evaluation"] or {}
 
         if metrics:
 
@@ -123,21 +176,26 @@ if st.button("Ask"):
 
                     st.write(details["reason"])
 
-        st.subheader("Request Metadata")
+    st.subheader("Request Metadata")
 
-        col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
-        col1.metric(
-            "Latency",
-            f"{result['latency']:.2f}s"
-        )
+    col1.metric(
+        "Latency",
+        f"{result['latency_seconds']:.2f}s"
+    )
 
-        col2.metric(
-            "Prompt Tokens",
-            result["prompt_tokens"]
-        )
+    col2.metric(
+        "Prompt Tokens",
+        result["prompt_tokens"]
+    )
 
-        col3.metric(
-            "Total Tokens",
-            result["total_tokens"]
-        )
+    col3.metric(
+        "Total Tokens",
+        result["total_tokens"]
+    )
+
+    col4.metric(
+        "Model",
+        result["model"].split("/")[-1]
+    )
