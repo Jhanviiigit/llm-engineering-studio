@@ -111,6 +111,32 @@ These changes don't alter behaviour for the user, but they make the system
 **Still in memory:** uploaded documents are lost when the API restarts, and two
 API replicas would each have different documents. Step 4 (pgvector) fixes this.
 
+### Step 4: Persistent vector store (Postgres + pgvector)
+
+```text
+documents                              chunks
+─────────                              ──────
+id            BIGSERIAL PK  ◄──┐       id           BIGSERIAL PK
+source        TEXT             └────── document_id  FK → documents (ON DELETE CASCADE)
+content_hash  TEXT UNIQUE              chunk_index  INT
+created_at    TIMESTAMPTZ              content      TEXT
+                                       embedding    vector(384)   ← HNSW index (cosine)
+```
+
+| Decision | Why |
+|---|---|
+| `PgVectorStore` has the same methods as `VectorStore` | Nothing above the store changed. `bootstrap.py` picks one: Postgres when `DATABASE_URL` is set, in memory otherwise (tests, quick runs) |
+| Documents identified by a SHA-256 **content hash** with a `UNIQUE` constraint | Re-indexing is idempotent: restarting the app no longer re-embeds `sample.txt` (fixes L2), and uploading the same file twice adds nothing. The constraint (not just a check in Python) makes this safe under concurrent uploads |
+| `has_document()` checked *before* embedding | Skips the expensive part (running the embedding model) for known documents |
+| A document and its chunks are inserted in **one transaction** | A crash mid-upload can't leave a document with half its chunks |
+| **HNSW** index with `vector_cosine_ops` | Approximate nearest-neighbour search in ~log(N) instead of scanning every chunk (fixes L5). Same cosine metric as the in-memory store, so results are comparable |
+| **Connection pool** (`psycopg_pool`, max 10) | Opening a Postgres connection costs milliseconds and server memory; reusing them keeps request latency low. Cloud SQL also limits total connections, so the pool caps usage per instance |
+| Embedding dimension checked at startup | If the embedding model changes (e.g. after fine-tuning in Phase 2 to a different size), the app fails with a clear message instead of on the first insert |
+| Separate `studio_test` database, and tests refuse to run on anything else | Integration tests truncate tables; they must never touch real data |
+
+**Fixed by this step:** L1 (data lost on restart; replicas can now share one
+database), L2 (no re-embedding at startup), L5 (ANN index).
+
 ---
 
 ## 4. Target architecture (v1 — on GCP)

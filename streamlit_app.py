@@ -91,10 +91,16 @@ if uploaded_file is not None and st.sidebar.button("Upload"):
 
         body = response.json()
 
-        st.sidebar.success(
-            f"Added {body['chunks_added']} chunks "
-            f"({body['total_chunks']} total)."
-        )
+        if body["already_indexed"]:
+
+            st.sidebar.info("This document is already indexed.")
+
+        else:
+
+            st.sidebar.success(
+                f"Added {body['chunks_added']} chunks "
+                f"({body['total_chunks']} total)."
+            )
 
     except httpx.HTTPError as e:
 

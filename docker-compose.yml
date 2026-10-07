@@ -1,0 +1,27 @@
+# Local infrastructure for development.
+#
+#   docker compose up -d      start Postgres + pgvector in the background
+#   docker compose down       stop it (data is kept in the "pgdata" volume)
+#
+# In the cloud this is replaced by Cloud SQL for PostgreSQL.
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: studio
+      POSTGRES_DB: studio
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio -d studio"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
