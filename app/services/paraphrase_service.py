@@ -1,10 +1,10 @@
-from llm.client import LLMClient
+from llm.client import LLMClient, get_client
 from prompts.paraphrase import build_paraphrase_prompt
 
-client = LLMClient()
 
+def paraphrase(text: str, client: LLMClient | None = None) -> dict:
 
-def paraphrase(text: str):
+    client = client or get_client()
 
     prompt = build_paraphrase_prompt(text)
 

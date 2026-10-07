@@ -1,8 +1,18 @@
-from llm.client import LLMClient
 import json
+import logging
+
+from llm.client import LLMClient, LLMError, get_client
 
 
-client = LLMClient()
+logger = logging.getLogger(__name__)
+
+
+BASE_METRICS = [
+    "groundedness",
+    "relevance",
+    "completeness",
+    "conciseness",
+]
 
 
 def build_evaluation_prompt(
@@ -30,14 +40,18 @@ Reference Answer:
 Does the generated answer correctly convey the information in the reference answer?
 """
 
-    correctness_json = ""
+    metrics = list(BASE_METRICS)
 
     if reference_answer:
-        correctness_json = """,
-"correctness": {
-    "score": 0.0,
-    "reason": ""
-}"""
+        metrics.append("correctness")
+
+    json_schema = json.dumps(
+        {
+            metric: {"score": 0.0, "reason": "..."}
+            for metric in metrics
+        },
+        indent=2
+    )
 
     prompt = f"""
 Evaluate the quality of the following RAG response.
@@ -69,7 +83,9 @@ Evaluate these dimensions:
 
 {correctness_instruction}
 
-Return a JSON object containing the evaluation.
+Return only a JSON object with exactly this structure:
+
+{json_schema}
 
 Scores must be between 0.0 and 1.0.
 """
@@ -77,12 +93,64 @@ Scores must be between 0.0 and 1.0.
     return prompt
 
 
+def parse_evaluation(response_text: str) -> dict:
+    """
+    Parse the judge's JSON into {metric: {"score", "reason"}}.
+
+    Different models format JSON differently (code fences, capitalised
+    keys, bare numbers instead of objects), so the output is normalised
+    before it is used. Raises ValueError if no scores can be found.
+    """
+
+    response_text = response_text.strip()
+
+    # Take the outermost {...}, dropping code fences or surrounding text
+    start = response_text.find("{")
+    end = response_text.rfind("}")
+
+    if start == -1 or end == -1:
+        raise ValueError("No JSON object in judge response")
+
+    data = json.loads(response_text[start:end + 1])
+
+    evaluation = {}
+
+    for key, value in data.items():
+
+        metric = key.strip().lower()
+
+        if isinstance(value, (int, float)):
+            value = {"score": value, "reason": ""}
+
+        if isinstance(value, dict) and "score" in value:
+            evaluation[metric] = {
+                "score": float(value["score"]),
+                "reason": str(value.get("reason", ""))
+            }
+
+    if not evaluation:
+        raise ValueError("No metric scores in judge response")
+
+    return evaluation
+
+
 def evaluate_rag(
     question: str,
     context: list[str],
     answer: str,
-    reference_answer: str = None
+    reference_answer: str = None,
+    client: LLMClient | None = None
 ) -> dict:
+    """
+    Score a RAG answer using an LLM as the judge.
+
+    If the judge call or its JSON output fails, an {"error": ...} dict
+    is returned instead of metric scores. Returning 0.0 scores on
+    failure would silently drag down benchmark averages, making a
+    parsing bug look like a quality regression.
+    """
+
+    client = client or get_client()
 
     prompt = build_evaluation_prompt(
         question,
@@ -91,46 +159,26 @@ def evaluate_rag(
         reference_answer
     )
 
-    result = client.chat(
-        prompt,
-        temperature=0.0,
-        response_format={
-            "type": "json_object"
-        }
-    )
-
     try:
 
-        response_text = result["response"].strip()
+        # Reasoning models spend part of max_tokens thinking before
+        # they write the JSON, so the judge needs a larger budget.
+        result = client.chat(
+            prompt,
+            temperature=0.0,
+            max_tokens=2000,
+            response_format={
+                "type": "json_object"
+            }
+        )
 
-        if response_text.startswith("```"):
-            response_text = response_text.replace("```json", "")
-            response_text = response_text.replace("```", "")
-            response_text = response_text.strip()
+        return parse_evaluation(result["response"])
 
-        evaluation = json.loads(response_text)
+    # json.JSONDecodeError is a subclass of ValueError
+    except (LLMError, ValueError) as e:
 
-        return evaluation
-
-    except Exception as e:
-
-        print("\nEvaluation parsing error:", e)
+        logger.warning("RAG evaluation failed: %s", e)
 
         return {
-            "groundedness": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            },
-            "relevance": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            },
-            "completeness": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            },
-            "conciseness": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            }
+            "error": f"Evaluation failed: {e}"
         }
