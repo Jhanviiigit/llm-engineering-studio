@@ -31,7 +31,10 @@ def get_settings() -> Settings:
             "LLM_BASE_URL",
             "https://openrouter.ai/api/v1"
         ),
-        llm_model=os.getenv("LLM_MODEL", "openrouter/free"),
+        llm_model=os.getenv(
+            "LLM_MODEL",
+            "nvidia/nemotron-3-super-120b-a12b:free"
+        ),
         embedding_model=os.getenv(
             "EMBEDDING_MODEL",
             "all-MiniLM-L6-v2"

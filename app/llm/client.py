@@ -103,7 +103,9 @@ class LLMClient:
         parsed = parse_response(response)
 
         parsed["latency"] = latency
-        parsed["model"] = model
+        # Routers (e.g. openrouter/free) may serve a different model
+        # than the one requested - record the one that actually answered.
+        parsed["model"] = getattr(response, "model", None) or model
         parsed["temperature"] = temperature
 
         return parsed
