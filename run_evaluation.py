@@ -1,30 +1,5 @@
-from rag.embeddings import EmbeddingModel
-from rag.vector_store import VectorStore
-from rag.indexer import Indexer
-from rag.retriever import Retriever
-
-from services.rag_service import RAGService
+from bootstrap import create_rag_service
 from evaluation.batch_evaluator import BatchEvaluator
-
-
-def create_rag_service():
-
-    embedding_model = EmbeddingModel()
-    vector_store = VectorStore()
-
-    indexer = Indexer(
-        embedding_model,
-        vector_store
-    )
-
-    indexer.index("data/documents/sample.txt")
-
-    retriever = Retriever(
-        embedding_model,
-        vector_store
-    )
-
-    return RAGService(retriever)
 
 
 def main():

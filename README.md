@@ -64,6 +64,8 @@ A Streamlit-based web interface provides an interactive way to:
 
 ## Architecture
 
+See [docs/system-design.md](docs/system-design.md) for the full system design: current architecture, limitations, the target GCP architecture, and the reasoning behind each decision.
+
 ```text
                          Streamlit UI
                               |
@@ -223,7 +225,7 @@ The project uses `pytest` for automated testing.
 Current test suite:
 
 ```text
-14 passed
+20 passed
 ```
 
 Tests cover:
@@ -241,6 +243,16 @@ Tests cover:
 * Batch evaluation
 
 LLM-dependent components are tested using mocked clients where appropriate, avoiding unnecessary API calls during unit testing.
+
+## Configuration
+
+Copy `.env.example` to `.env` and set your OpenRouter API key:
+
+```text
+OPENROUTER_API_KEY=your_api_key_here
+```
+
+All settings are read from environment variables in `app/config.py`. Unit tests do not need an API key.
 
 ## Running the Application
 

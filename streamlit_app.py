@@ -11,11 +11,8 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 
-from rag.embeddings import EmbeddingModel
-from rag.vector_store import VectorStore
-from rag.indexer import Indexer
-from rag.retriever import Retriever
-from services.rag_service import RAGService
+from bootstrap import create_rag_service
+from llm.client import LLMError
 
 
 st.set_page_config(
@@ -26,24 +23,9 @@ st.set_page_config(
 
 
 @st.cache_resource
-def create_rag_service():
+def get_rag_service():
 
-    embedding_model = EmbeddingModel()
-    vector_store = VectorStore()
-
-    indexer = Indexer(
-        embedding_model,
-        vector_store
-    )
-
-    indexer.index("data/documents/sample.txt")
-
-    retriever = Retriever(
-        embedding_model,
-        vector_store
-    )
-
-    return RAGService(retriever)
+    return create_rag_service()
 
 
 st.title("LLM Engineering Studio")
@@ -80,12 +62,19 @@ if st.button("Ask"):
 
         with st.spinner("Generating answer..."):
 
-            rag_service = create_rag_service()
+            rag_service = get_rag_service()
 
-            result = rag_service.answer_question(
-                question,
-                top_k=top_k
-            )
+            try:
+
+                result = rag_service.answer_question(
+                    question,
+                    top_k=top_k
+                )
+
+            except LLMError as e:
+
+                st.error(f"The language model request failed: {e}")
+                st.stop()
 
         st.subheader("Answer")
 
@@ -106,25 +95,33 @@ if st.button("Ask"):
 
         evaluation = result.get("evaluation", {})
 
-        if evaluation:
+        if "error" in evaluation:
 
-            cols = st.columns(len(evaluation))
+            st.warning(evaluation["error"])
+
+        metrics = {
+            metric: details
+            for metric, details in evaluation.items()
+            if isinstance(details, dict)
+        }
+
+        if metrics:
+
+            cols = st.columns(len(metrics))
 
             for col, (metric, details) in zip(
                 cols,
-                evaluation.items()
+                metrics.items()
             ):
 
-                if isinstance(details, dict):
+                col.metric(
+                    metric.capitalize(),
+                    f"{details['score']:.2f}"
+                )
 
-                    col.metric(
-                        metric.capitalize(),
-                        f"{details['score']:.2f}"
-                    )
+                with col.expander("Reason"):
 
-                    with col.expander("Reason"):
-
-                        st.write(details["reason"])
+                    st.write(details["reason"])
 
         st.subheader("Request Metadata")
 

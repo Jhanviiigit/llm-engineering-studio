@@ -1,8 +1,10 @@
-from llm.client import LLMClient
 import json
+import logging
+
+from llm.client import LLMClient, LLMError, get_client
 
 
-client = LLMClient()
+logger = logging.getLogger(__name__)
 
 
 def build_evaluation_prompt(
@@ -29,15 +31,6 @@ Reference Answer:
 5. Correctness:
 Does the generated answer correctly convey the information in the reference answer?
 """
-
-    correctness_json = ""
-
-    if reference_answer:
-        correctness_json = """,
-"correctness": {
-    "score": 0.0,
-    "reason": ""
-}"""
 
     prompt = f"""
 Evaluate the quality of the following RAG response.
@@ -81,8 +74,19 @@ def evaluate_rag(
     question: str,
     context: list[str],
     answer: str,
-    reference_answer: str = None
+    reference_answer: str = None,
+    client: LLMClient | None = None
 ) -> dict:
+    """
+    Score a RAG answer using an LLM as the judge.
+
+    If the judge call or its JSON output fails, an {"error": ...} dict
+    is returned instead of metric scores. Returning 0.0 scores on
+    failure would silently drag down benchmark averages, making a
+    parsing bug look like a quality regression.
+    """
+
+    client = client or get_client()
 
     prompt = build_evaluation_prompt(
         question,
@@ -91,15 +95,15 @@ def evaluate_rag(
         reference_answer
     )
 
-    result = client.chat(
-        prompt,
-        temperature=0.0,
-        response_format={
-            "type": "json_object"
-        }
-    )
-
     try:
+
+        result = client.chat(
+            prompt,
+            temperature=0.0,
+            response_format={
+                "type": "json_object"
+            }
+        )
 
         response_text = result["response"].strip()
 
@@ -108,29 +112,12 @@ def evaluate_rag(
             response_text = response_text.replace("```", "")
             response_text = response_text.strip()
 
-        evaluation = json.loads(response_text)
+        return json.loads(response_text)
 
-        return evaluation
+    except (LLMError, json.JSONDecodeError) as e:
 
-    except Exception as e:
-
-        print("\nEvaluation parsing error:", e)
+        logger.warning("RAG evaluation failed: %s", e)
 
         return {
-            "groundedness": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            },
-            "relevance": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            },
-            "completeness": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            },
-            "conciseness": {
-                "score": 0.0,
-                "reason": "Evaluation parsing failed."
-            }
+            "error": f"Evaluation failed: {e}"
         }

@@ -1,11 +1,14 @@
-from llm.client import LLMClient
+from llm.client import LLMClient, get_client
 from prompts.translation import build_translation_prompt
 
 
-client = LLMClient()
+def translate(
+    text: str,
+    language: str,
+    client: LLMClient | None = None
+) -> dict:
 
-
-def translate(text: str, language: str) -> str:
+    client = client or get_client()
 
     prompt = build_translation_prompt(text, language)
 

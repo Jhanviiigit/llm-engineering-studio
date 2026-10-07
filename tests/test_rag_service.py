@@ -25,7 +25,13 @@ class FakeLLMClient:
         }
 
 
-def fake_evaluate_rag(question, context, answer, reference_answer=None):
+def fake_evaluate_rag(
+    question,
+    context,
+    answer,
+    reference_answer=None,
+    client=None
+):
     assert question == "What is RAG?"
     assert len(context) == 2
     assert answer == "RAG combines retrieval with generation."
@@ -49,9 +55,10 @@ def test_rag_service(monkeypatch):
         fake_evaluate_rag
     )
 
-    service = RAGService(FakeRetriever())
-
-    service.client = FakeLLMClient()
+    service = RAGService(
+        FakeRetriever(),
+        client=FakeLLMClient()
+    )
 
     result = service.answer_question(
         "What is RAG?",
@@ -65,3 +72,27 @@ def test_rag_service(monkeypatch):
     assert len(result["retrieved_context"]) == 2
 
     assert result["evaluation"]["groundedness"]["score"] == 1.0
+
+def test_rag_service_without_evaluation(monkeypatch):
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("evaluate_rag should not be called")
+
+    monkeypatch.setattr(
+        "services.rag_service.evaluate_rag",
+        fail_if_called
+    )
+
+    service = RAGService(
+        FakeRetriever(),
+        client=FakeLLMClient()
+    )
+
+    result = service.answer_question(
+        "What is RAG?",
+        top_k=2,
+        evaluate=False
+    )
+
+    assert "evaluation" not in result
+    assert len(result["retrieved_context"]) == 2

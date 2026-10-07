@@ -86,3 +86,19 @@ def test_batch_evaluator_top_k():
     )
 
     assert len(results) == 5
+
+def test_batch_evaluator_summary_skips_failed_evaluations():
+
+    evaluator = BatchEvaluator(
+        FakeRAGService()
+    )
+
+    results = [
+        {"evaluation": {"groundedness": {"score": 1.0, "reason": ""}}},
+        {"evaluation": {"error": "Evaluation failed: not json"}},
+        {"evaluation": {"groundedness": {"score": 0.5, "reason": ""}}},
+    ]
+
+    summary = evaluator.summarize(results)
+
+    assert summary["groundedness"] == 0.75
