@@ -34,3 +34,44 @@ def test_failed_request_raises_llm_error():
 
     with pytest.raises(LLMError, match="connection refused"):
         client.chat("Hello")
+
+
+class EmptyMessage:
+
+    content = None
+
+
+class EmptyChoice:
+
+    message = EmptyMessage()
+    finish_reason = "length"
+
+
+class EmptyResponse:
+
+    choices = [EmptyChoice()]
+
+
+class EmptyCompletions:
+
+    def create(self, **request):
+        return EmptyResponse()
+
+
+class EmptyChat:
+
+    completions = EmptyCompletions()
+
+
+class EmptyOpenAI:
+
+    chat = EmptyChat()
+
+
+def test_empty_response_raises_llm_error():
+
+    client = LLMClient(api_key="test-key")
+    client.client = EmptyOpenAI()
+
+    with pytest.raises(LLMError, match="finish_reason=length"):
+        client.chat("Hello")

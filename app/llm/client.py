@@ -49,7 +49,7 @@ class LLMClient:
         prompt: str,
         model: str | None = None,
         temperature: float = 0.7,
-        max_tokens: int = 500,
+        max_tokens: int = 1500,
         response_format: dict | None = None,
     ) -> dict:
         """
@@ -88,6 +88,17 @@ class LLMClient:
             raise LLMError(f"LLM request failed: {e}") from e
 
         latency = time.perf_counter() - start
+
+        choice = response.choices[0]
+
+        # Reasoning models can spend the whole max_tokens budget
+        # "thinking" and return no answer text at all.
+        if not choice.message.content:
+            raise LLMError(
+                "LLM returned an empty response "
+                f"(finish_reason={choice.finish_reason}). "
+                "Try a higher max_tokens or a different model."
+            )
 
         parsed = parse_response(response)
 
