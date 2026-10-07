@@ -83,6 +83,34 @@ These changes don't alter behaviour for the user, but they make the system
 | `RAGService.answer_question(..., evaluate=False)` | First step toward moving evaluation off the request path (L4) |
 | `app/bootstrap.py` — one composition root | `create_rag_service()` was duplicated in 3 files. Now swapping the vector store for pgvector is a one-file change |
 
+### Step 3: API service (FastAPI)
+
+```text
+ Before                                  After
+ ──────                                  ─────
+ Streamlit process                       Streamlit (thin client)
+  ├─ embedding model                         │  HTTP: POST /ask, POST /documents
+  ├─ vector store                            ▼
+  └─ LLM client                          FastAPI service
+                                          ├─ embedding model   (loaded once at startup)
+                                          ├─ vector store
+                                          └─ LLM client
+```
+
+| Decision | Why |
+|---|---|
+| UI talks to the API over HTTP | UI and API can be deployed, scaled and restarted independently. Any client (scripts, other apps, the eval runner) can use the same API |
+| Models loaded once in FastAPI's `lifespan` | Loading MiniLM takes seconds; doing it per request would dominate latency |
+| Endpoints are `def`, not `async def` | The LLM SDK and embedding model are blocking. FastAPI runs `def` endpoints in a thread pool; a blocking call inside `async def` would freeze every request |
+| `threading.Lock` in `VectorStore` | Thread-pool requests run concurrently: a search could otherwise read the lists while an upload is half-way through extending them |
+| `/ask` defaults to `evaluate=false` | Keeps the common path to one LLM call (L4); callers opt in to evaluation |
+| Pydantic request/response models | Invalid input (empty question, `top_k` out of range) is rejected with 422 before any work is done, and the schema becomes the API contract shown at `/docs` |
+| Upstream LLM failure → **502 Bad Gateway** | Distinguishes "our service is broken" (500) from "a dependency failed" (502), which matters for alerting |
+| Upload limits (1 MB, `.txt`, UTF-8) | Never trust client input size or format |
+
+**Still in memory:** uploaded documents are lost when the API restarts, and two
+API replicas would each have different documents. Step 4 (pgvector) fixes this.
+
 ---
 
 ## 4. Target architecture (v1 — on GCP)

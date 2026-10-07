@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from config import get_settings
 from rag.embeddings import EmbeddingModel
 from rag.vector_store import VectorStore
@@ -6,13 +8,24 @@ from rag.retriever import Retriever
 from services.rag_service import RAGService
 
 
-def create_rag_service(documents_path: str | None = None) -> RAGService:
+@dataclass
+class Services:
     """
-    Build a RAGService with all of its dependencies.
+    The application's long-lived components, built once at startup.
+    """
 
-    This is the single place where components are created and wired
-    together (the "composition root"). Swapping the in-memory
-    VectorStore for pgvector later only requires changing this file.
+    indexer: Indexer
+    vector_store: VectorStore
+    rag_service: RAGService
+
+
+def create_services(documents_path: str | None = None) -> Services:
+    """
+    Build all components and wire them together.
+
+    This is the single place where components are created (the
+    "composition root"). Swapping the in-memory VectorStore for
+    pgvector later only requires changing this file.
     """
 
     settings = get_settings()
@@ -32,4 +45,13 @@ def create_rag_service(documents_path: str | None = None) -> RAGService:
         vector_store
     )
 
-    return RAGService(retriever)
+    return Services(
+        indexer=indexer,
+        vector_store=vector_store,
+        rag_service=RAGService(retriever)
+    )
+
+
+def create_rag_service(documents_path: str | None = None) -> RAGService:
+
+    return create_services(documents_path).rag_service

@@ -13,11 +13,23 @@ class Indexer:
         self.embedding_model = embedding_model
         self.vector_store = vector_store
 
-    def index(self, file_path: str) -> None:
+    def index(self, file_path: str) -> int:
         text = load_text_file(file_path)
 
+        return self.index_text(text)
+
+    def index_text(self, text: str) -> int:
+        """
+        Chunk, embed and store text. Returns the number of chunks added.
+        """
+
         chunks = chunk_text(text)
+
+        if not chunks:
+            return 0
 
         embeddings = self.embedding_model.encode(chunks)
 
         self.vector_store.add(chunks, embeddings)
+
+        return len(chunks)
