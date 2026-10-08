@@ -328,6 +328,30 @@ The browser interface allows users to:
 
 Set `API_URL` if the API is not running on `http://localhost:8000`.
 
+## Running Everything in Docker
+
+The whole stack (database, API and UI) can run in containers:
+
+```bash
+docker compose --profile app up -d --build
+```
+
+* UI: http://localhost:8501
+* API docs: http://localhost:8000/docs
+
+The API reads `OPENROUTER_API_KEY` from `.env`. Stop everything with:
+
+```bash
+docker compose --profile app down
+```
+
+## Continuous Integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request:
+
+* **Tests**: the full pytest suite, including database tests against a Postgres + pgvector service container
+* **Docker build**: builds the API and UI images
+
 ## Running Tests
 
 ```bash
@@ -358,7 +382,8 @@ data/evaluation/rag_test_cases.json
 * Sentence Transformers
 * FastAPI
 * PostgreSQL + pgvector
-* Docker Compose
+* Docker and Docker Compose
+* GitHub Actions
 * Streamlit
 * OpenAI-compatible APIs
 * OpenRouter
