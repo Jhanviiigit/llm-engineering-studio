@@ -34,6 +34,8 @@ async def lifespan(app: FastAPI):
     # not on every request.
     app.state.services = create_services()
     yield
+    # Release database connections on shutdown
+    app.state.services.close()
 
 
 app = FastAPI(
@@ -128,10 +130,14 @@ def upload_document(
     if not text.strip():
         raise HTTPException(status_code=400, detail="File is empty.")
 
-    chunks_added = services.indexer.index_text(text)
+    chunks_added = services.indexer.index_text(
+        text,
+        source=file.filename,
+    )
 
     return DocumentResponse(
         filename=file.filename,
         chunks_added=chunks_added,
+        already_indexed=chunks_added == 0,
         total_chunks=services.vector_store.count(),
     )

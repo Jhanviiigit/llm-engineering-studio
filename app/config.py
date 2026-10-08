@@ -22,6 +22,8 @@ class Settings:
     llm_model: str
     embedding_model: str
     documents_path: str
+    # Postgres + pgvector when set, otherwise an in-memory vector store
+    database_url: str | None
 
 
 def get_settings() -> Settings:
@@ -43,4 +45,5 @@ def get_settings() -> Settings:
             "DOCUMENTS_PATH",
             "data/documents/sample.txt"
         ),
+        database_url=os.getenv("DATABASE_URL"),
     )

@@ -34,3 +34,12 @@ def test_empty_vector_store():
     results = store.search([1.0, 0.0])
 
     assert results == []
+
+def test_add_rejects_duplicate_content_hash():
+    store = VectorStore()
+
+    assert store.add(["chunk"], [[1.0, 0.0]], content_hash="abc") is True
+    assert store.add(["chunk"], [[1.0, 0.0]], content_hash="abc") is False
+
+    assert store.count() == 1
+    assert store.has_document("abc")

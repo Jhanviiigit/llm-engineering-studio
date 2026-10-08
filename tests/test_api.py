@@ -50,10 +50,15 @@ class FakeIndexer:
     def __init__(self, vector_store):
         self.vector_store = vector_store
 
-    def index_text(self, text):
+    def index_text(self, text, source=None):
         chunks = [text]
-        self.vector_store.add(chunks, [[1.0, 0.0]])
-        return len(chunks)
+        added = self.vector_store.add(
+            chunks,
+            [[1.0, 0.0]],
+            source=source,
+            content_hash=text,
+        )
+        return len(chunks) if added else 0
 
 
 def make_client(rag_service):
@@ -185,8 +190,23 @@ def test_upload_document():
     assert response.json() == {
         "filename": "notes.txt",
         "chunks_added": 1,
+        "already_indexed": False,
         "total_chunks": 1,
     }
+
+
+def test_upload_same_document_twice_is_not_duplicated():
+
+    client = make_client(FakeRAGService())
+
+    files = {"file": ("notes.txt", b"Vector databases store embeddings.")}
+
+    client.post("/documents", files=files)
+    response = client.post("/documents", files=files)
+
+    assert response.status_code == 201
+    assert response.json()["already_indexed"] is True
+    assert response.json()["total_chunks"] == 1
 
 
 def test_upload_rejects_non_text_file():

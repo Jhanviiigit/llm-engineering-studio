@@ -4,21 +4,54 @@ import numpy as np
 
 
 class VectorStore:
+    """
+    In-memory vector store. Data is lost when the process exits.
+
+    Used for tests and quick local runs. PgVectorStore has the same
+    interface and keeps data in Postgres.
+    """
+
     def __init__(self):
         self.embeddings = []
         self.documents = []
+        self.content_hashes = set()
 
         # The API serves requests on multiple threads; the lock stops a
         # search from reading while an upload is half-way through adding.
         self._lock = threading.Lock()
 
-    def add(self, documents: list[str], embeddings: list[list[float]]) -> None:
+    def has_document(self, content_hash: str) -> bool:
+        with self._lock:
+            return content_hash in self.content_hashes
+
+    def add(
+        self,
+        documents: list[str],
+        embeddings: list[list[float]],
+        source: str | None = None,
+        content_hash: str | None = None,
+    ) -> bool:
+        """
+        Store chunks and their embeddings.
+
+        Returns False (and stores nothing) if a document with the same
+        content_hash was already added.
+        """
+
         if len(documents) != len(embeddings):
             raise ValueError("Documents and embeddings must have the same length")
 
         with self._lock:
+            if content_hash is not None:
+                if content_hash in self.content_hashes:
+                    return False
+
+                self.content_hashes.add(content_hash)
+
             self.documents.extend(documents)
             self.embeddings.extend(embeddings)
+
+        return True
 
     def count(self) -> int:
         return len(self.documents)

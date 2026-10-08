@@ -225,7 +225,7 @@ The project uses `pytest` for automated testing.
 Current test suite:
 
 ```text
-35 passed
+38 passed, 4 skipped (database tests run when TEST_DATABASE_URL is set)
 ```
 
 Tests cover:
@@ -270,6 +270,27 @@ The terminal application currently provides:
 3. Temperature Experiment
 4. RAG Question Answering
 5. Exit
+```
+
+## Database (Postgres + pgvector)
+
+By default, documents are stored in memory and lost when the API stops. To keep them, run Postgres with the pgvector extension in Docker:
+
+```bash
+docker compose up -d
+```
+
+Then add this line to `.env`:
+
+```text
+DATABASE_URL=postgresql://studio:studio@localhost:5432/studio
+```
+
+Run the database integration tests (they use a separate `studio_test` database):
+
+```powershell
+$env:TEST_DATABASE_URL="postgresql://studio:studio@localhost:5432/studio_test"
+python -m pytest tests/test_pg_vector_store.py
 ```
 
 ## Running the API and Web Interface
@@ -336,6 +357,8 @@ data/evaluation/rag_test_cases.json
 * PyTorch
 * Sentence Transformers
 * FastAPI
+* PostgreSQL + pgvector
+* Docker Compose
 * Streamlit
 * OpenAI-compatible APIs
 * OpenRouter
@@ -363,5 +386,4 @@ Planned extensions include:
 * Additional parameter benchmarking
 * Larger evaluation datasets
 * LangChain workflows
-* Additional vector database integrations
 * More robust evaluation and monitoring

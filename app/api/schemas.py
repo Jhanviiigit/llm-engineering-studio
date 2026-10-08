@@ -35,6 +35,7 @@ class AskResponse(BaseModel):
 class DocumentResponse(BaseModel):
     filename: str
     chunks_added: int
+    already_indexed: bool
     total_chunks: int
 
 
