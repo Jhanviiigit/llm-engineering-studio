@@ -64,7 +64,7 @@ A Streamlit-based web interface provides an interactive way to:
 
 ## Architecture
 
-See [docs/system-design.md](docs/system-design.md) for the full system design: current architecture, limitations, the target GCP architecture, and the reasoning behind each decision.
+See [docs/system-design.md](docs/system-design.md) for the full system design, and [docs/interview-guide.md](docs/interview-guide.md) for the reasoning behind each decision, debugging stories and likely interview questions. The system design doc covers current architecture, limitations, the target GCP architecture, and the reasoning behind each decision.
 
 ```text
                          Streamlit UI
