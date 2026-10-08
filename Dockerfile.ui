@@ -1,0 +1,30 @@
+# UI image: Streamlit thin client. No ML libraries, so it is small and
+# starts fast.
+#
+#   docker build -f Dockerfile.ui -t llm-studio-ui .
+
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8080
+
+WORKDIR /srv
+
+COPY requirements-ui.txt .
+RUN pip install -r requirements-ui.txt
+
+COPY streamlit_app.py .
+
+RUN useradd --create-home --uid 1000 appuser
+USER appuser
+
+EXPOSE 8080
+
+CMD exec streamlit run streamlit_app.py \
+    --server.port ${PORT} \
+    --server.address 0.0.0.0 \
+    --server.headless true \
+    --browser.gatherUsageStats false

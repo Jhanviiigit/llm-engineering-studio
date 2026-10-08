@@ -1,0 +1,5 @@
+# Files used inside Linux containers keep Unix line endings on Windows too
+Dockerfile* text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf

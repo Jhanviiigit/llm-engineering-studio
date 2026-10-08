@@ -1,9 +1,14 @@
 # Local infrastructure for development.
 #
-#   docker compose up -d      start Postgres + pgvector in the background
-#   docker compose down       stop it (data is kept in the "pgdata" volume)
+#   docker compose up -d                          database only (run the API
+#                                                 and UI from .venv as usual)
+#   docker compose --profile app up -d --build    whole stack in containers:
+#                                                 UI http://localhost:8501
+#                                                 API http://localhost:8000/docs
+#   docker compose --profile app down             stop everything (data is kept
+#                                                 in the "pgdata" volume)
 #
-# In the cloud this is replaced by Cloud SQL for PostgreSQL.
+# In the cloud: db -> Cloud SQL, api and ui -> Cloud Run services.
 
 services:
   db:
@@ -22,6 +27,42 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    profiles: ["app"]
+    build: .
+    # OPENROUTER_API_KEY and other settings come from .env ...
+    env_file:
+      - path: .env
+        required: false
+    # ... but inside the Docker network the database is reached by its
+    # service name "db", not "localhost" (which is the container itself).
+    environment:
+      DATABASE_URL: postgresql://studio:studio@db:5432/studio
+    ports:
+      - "8000:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  ui:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    environment:
+      API_URL: http://api:8080
+    ports:
+      - "8501:8080"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

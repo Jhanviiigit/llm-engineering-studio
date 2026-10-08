@@ -3,7 +3,7 @@
 This document describes how the system works today, where it is going, and
 *why* each design decision was made. It is updated at the end of every phase.
 
-- **Status:** Phase 1 in progress
+- **Status:** Phase 1 complete (steps 1–5); Phase 2 next
 - **Target cloud:** Google Cloud Platform (GCP)
 - **Constraint:** no GPU — all model training must run on CPU or free Colab
 
@@ -136,6 +136,32 @@ created_at    TIMESTAMPTZ              content      TEXT
 
 **Fixed by this step:** L1 (data lost on restart; replicas can now share one
 database), L2 (no re-embedding at startup), L5 (ANN index).
+
+### Step 5: Containers and CI
+
+```text
+docker compose --profile app up              GitHub Actions (every push / PR)
+───────────────────────────────              ────────────────────────────────
+ ui  (Dockerfile.ui, ~small)   :8501          Tests job:  Postgres service container
+   │  http://api:8080                                      → pytest (incl. DB tests)
+   ▼                                          Docker job: build API + UI images
+ api (Dockerfile)              :8000
+   │  postgresql://db:5432
+   ▼
+ db  (pgvector/pgvector:pg17)  :5432
+```
+
+| Decision | Why |
+|---|---|
+| **CPU-only PyTorch** in the image and CI | The default Linux PyTorch wheel bundles several GB of CUDA libraries. Without a GPU they are dead weight: slower builds, slower Cloud Run cold starts, more storage |
+| Dependencies installed **before** copying the code | Docker caches each layer. Code changes then rebuild in seconds instead of reinstalling every package |
+| Embedding model **downloaded at build time** | A new container (e.g. Cloud Run scaling up) serves immediately, with no network fetch or Hugging Face rate limits at startup |
+| Separate, small **UI image** with `requirements-ui.txt` | The thin client needs only Streamlit + httpx, not PyTorch. Each service carries only what it uses |
+| Listens on `$PORT` (default 8080), runs as **non-root** | Cloud Run injects `PORT`. Non-root limits the damage if the app is compromised |
+| `.dockerignore` excludes `.env`, `.venv`, `.git` | Secrets must never be baked into an image; images can be pulled by anyone with registry access |
+| Compose uses service names (`db`, `api`) as hostnames | Inside a container, `localhost` is the container itself. Docker's network gives each service a DNS name |
+| Compose **profiles**: `db` always, `api` + `ui` under `app` | Day-to-day development runs Python from `.venv` against the containerised database; the full stack is one command when needed |
+| **CI** runs tests against a real Postgres, and builds both images | Every PR shows whether it passes before it is merged. The database tests that were skipped locally run on every push |
 
 ---
 
