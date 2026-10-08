@@ -3,7 +3,7 @@
 This document describes how the system works today, where it is going, and
 *why* each design decision was made. It is updated at the end of every phase.
 
-- **Status:** Phase 1 complete (steps 1–5); Phase 2 next
+- **Status:** Phase 1 complete; Phase 2 in progress (step 1 done)
 - **Target cloud:** Google Cloud Platform (GCP)
 - **Constraint:** no GPU — all model training must run on CPU or free Colab
 
@@ -236,6 +236,48 @@ change has a before/after number.
 | Fine-tuned embeddings | Contrastive learning (MultipleNegativesRankingLoss) on MiniLM | Generic embeddings miss domain vocabulary |
 | Cross-encoder reranker | Retrieve 20 → rerank → keep top 3 | The `top_k` trade-off: more context improved groundedness but hurt completeness |
 | Distilled judge | Train a DistilBERT classifier on LLM-judge labels | LLM-as-judge is slow and costly; a small model can score every request |
+
+### Step 1: Retrieval benchmark (done)
+
+The existing evaluation scores *answers* with an LLM judge. That can't tell
+whether a bad answer came from bad retrieval or bad generation, it costs LLM
+calls, and the free tier allows 50 per day. Retrieval needs its own,
+LLM-free measurement.
+
+**Dataset: SciFact** (BEIR): 5,183 scientific abstracts; 809 train and 300
+test claims, each labelled with the abstracts that answer it. The labels
+come with the dataset, so no LLM is needed, and the separate train split
+can be used for fine-tuning without contaminating the test set.
+
+**Method:** embed every abstract (title + text) and every query, rank all
+abstracts by exact cosine similarity, and compare against the labels.
+Exact (brute-force) search is used on purpose: the benchmark measures the
+*embedding model*, and an approximate index (HNSW) could hide differences
+between models.
+
+**Baseline: `all-MiniLM-L6-v2`, SciFact test**
+
+| Metric | Score |
+|---|---:|
+| recall@1 | 0.485 |
+| recall@5 | 0.741 |
+| recall@10 | 0.788 |
+| recall@100 | 0.925 |
+| MRR@10 | 0.607 |
+| **nDCG@10** | **0.648** |
+
+Corpus encoding: 201 s on CPU (5,183 abstracts); query encoding: 5.4 ms/query.
+
+**Validation:** the published nDCG@10 for this model on SciFact is about
+0.645, so the metric implementation matches the standard one.
+
+**What the numbers say:** recall@100 (0.93) is far above recall@10 (0.79).
+The right abstract is usually *retrieved* but *ranked too low*. That is the
+case a reranker addresses: take the top 100 from the fast embedding model,
+re-score them with a slower, more accurate cross-encoder, and keep the best.
+
+**Caveat:** MiniLM reads at most 256 tokens, and the median abstract is about
+1,330 characters (~300 tokens), so the end of longer abstracts is ignored.
 
 ---
 

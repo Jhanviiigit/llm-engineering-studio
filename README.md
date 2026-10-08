@@ -64,7 +64,7 @@ A Streamlit-based web interface provides an interactive way to:
 
 ## Architecture
 
-See [docs/system-design.md](docs/system-design.md) for the full system design: current architecture, limitations, the target GCP architecture, and the reasoning behind each decision.
+See [docs/system-design.md](docs/system-design.md) for the full system design, and [docs/interview-guide.md](docs/interview-guide.md) for the reasoning behind each decision, debugging stories and likely interview questions. The system design doc covers current architecture, limitations, the target GCP architecture, and the reasoning behind each decision.
 
 ```text
                          Streamlit UI
@@ -327,6 +327,22 @@ The browser interface allows users to:
 * View evaluation metrics, latency, token usage and the model used
 
 Set `API_URL` if the API is not running on `http://localhost:8000`.
+
+## Retrieval Benchmark
+
+Measures how well the embedding model finds the right documents, without any LLM calls, on the [SciFact](https://huggingface.co/datasets/BeIR/scifact) dataset (5,183 scientific abstracts, 300 labelled test queries):
+
+```bash
+python run_retrieval_benchmark.py
+```
+
+Baseline for `all-MiniLM-L6-v2`:
+
+| Metric | recall@1 | recall@10 | recall@100 | MRR@10 | nDCG@10 |
+| ------ | -------: | --------: | ---------: | -----: | ------: |
+| Score  | 0.485 | 0.788 | 0.925 | 0.607 | 0.648 |
+
+This matches the published nDCG@10 of about 0.645 for this model, which validates the metric implementation. Results are saved to `output/benchmarks/`. See [docs/system-design.md](docs/system-design.md) for the analysis.
 
 ## Running Everything in Docker
 
